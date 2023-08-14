@@ -16,10 +16,11 @@ from rest_framework import generics
 
 from rest_framework.exceptions import ValidationError
 
+from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
+
+
 
 class ReviewCreate(generics.CreateAPIView):
-
-    
 
     serializer_class = ReviewSerializer
 
@@ -38,6 +39,14 @@ class ReviewCreate(generics.CreateAPIView):
         if review_queryset.exists():
             raise ValidationError("You already gave review to this movie")
             # return Response(serializer.errors, status=status.HTTP_204_NO_CONTENT)
+
+        if watchlist.number_rating == 0:
+            watchlist.avg_rating = serializer.validated_data['rating']
+        else:
+            watchlist.avg_rating = (watchlist.avg_rating + serializer.validated_data['rating'])/2
+
+        watchlist.number_rating += 1
+        watchlist.save()
     
         serializer.save(watchlist=watchlist, review_user=review_user)
 
@@ -48,7 +57,10 @@ class ReviewList(generics.ListAPIView):
     # # It will give me all th review
     # queryset = Review.objects.all()
     serializer_class = ReviewSerializer
+    # authentication_classes = [BasicAuthentication]
     permission_classes = [IsAuthenticated]
+    throttle_classes = [UserRateThrottle, AnonRateThrottle]
+    
 
     # overiding the queryset for finding the specific movie review
     def get_queryset(self):
@@ -136,8 +148,6 @@ class PlatformDetailAV(APIView):
         platform.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
         
-
-
 
 
 class WatchlistListAV(APIView):
